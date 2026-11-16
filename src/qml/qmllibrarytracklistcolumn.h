@@ -34,6 +34,14 @@ class QmlLibraryTrackListColumn : public QObject {
         Key = ColumnCache::COLUMN_LIBRARYTABLE_KEY,
         FileType = ColumnCache::COLUMN_LIBRARYTABLE_FILETYPE,
         Bitrate = ColumnCache::COLUMN_LIBRARYTABLE_BITRATE,
+        // DJBOX: the record shelf groups tracks into records (albums) and
+        // sorts them by genre, date added and cover colour.
+        AlbumArtist = ColumnCache::COLUMN_LIBRARYTABLE_ALBUMARTIST,
+        Genre = ColumnCache::COLUMN_LIBRARYTABLE_GENRE,
+        TrackNumber = ColumnCache::COLUMN_LIBRARYTABLE_TRACKNUMBER,
+        Duration = ColumnCache::COLUMN_LIBRARYTABLE_DURATION,
+        DateTimeAdded = ColumnCache::COLUMN_LIBRARYTABLE_DATETIMEADDED,
+        CoverArtColor = ColumnCache::COLUMN_LIBRARYTABLE_COVERART_COLOR,
     };
     Q_ENUM(SQLColumns)
     enum class Role {

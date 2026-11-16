@@ -43,17 +43,32 @@ ApplicationWindow {
 
         anchors.fill: parent
 
+        // DJBOX: the record shelf is the main window. If it fails to load, fall
+        // back to the stock Mixxx window instead of quitting. Both windows are
+        // loaded by file name so that an error in DJBOX cannot break this file.
+        property bool djbox: true
+
+        function load() {
+            setSource(djbox ? "DJBoxWindow.qml" : "MainWindow.qml", {
+                "applicationWindow": root
+            });
+        }
+
         active: Mixxx.Core.ready
         asynchronous: true
+
+        Component.onCompleted: load()
         onStatusChanged: {
             if (status === Loader.Error) {
-                console.error("Failed to load the Mixxx main window")
-                Qt.quit()
-            }
-        }
-        sourceComponent: Component {
-            MainWindow {
-                applicationWindow: root
+                if (djbox) {
+                    console.warn("DJBOX failed to load, falling back to the stock Mixxx main window");
+                    djbox = false;
+                    // Deferred: a setSource() from inside this handler loses the initial properties.
+                    Qt.callLater(content.load);
+                    return;
+                }
+                console.error("Failed to load the Mixxx main window");
+                Qt.quit();
             }
         }
     }
