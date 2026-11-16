@@ -1,9 +1,10 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import "."
-import "ShelfLogic.mjs" as Logic
 
-// DJBOX: das Plattenregal füllt das Fenster, davor steht das Set aus Plattenspielern und Mixer.
+// DJBOX: oben die Bibliothek (Regal und Liste), darunter das Set aus Playern und Mixer.
+// Die Grenze zwischen beiden lässt sich ziehen; das Set skaliert mit.
 Item {
     id: root
 
@@ -25,22 +26,22 @@ Item {
             "label": "D"
         }
     ]
+    property real boothShare: 0.58               // Anteil des Sets an der Höhe unter der Kopfzeile
     property int deckCount: 2
-    // so, wie die Geräte stehen: links C, A · rechts B, D. In dieser Reihenfolge liegen auch die Kanalzüge.
-    readonly property var deckOrder: decks.filter((d, i) => i % 2 === 0).reverse().concat(decks.filter((d, i) => i % 2 === 1))
     readonly property var decks: allDecks.slice(0, deckCount)
-    readonly property real dockHeight: 488 * rail.scale + 14
+    property int dragPick: 0
     property var dragRec: null
+    readonly property alias library: library
     property bool setShown: true
-    readonly property alias shelf: shelf
+    readonly property alias shelf: library.shelf
     property int stackRev: 0
-    property var stacks: ({})                      // Gruppe → Platten auf dem Teller, die oberste zuletzt
+    property var stacks: ({})                      // Gruppe → Platten auf dem Player, die oberste zuletzt
 
     signal preferencesRequested
 
     function deckAt(x, y) {
-        for (let i = 0; i < turntables.count; i++) {
-            const t = turntables.itemAt(i);
+        for (let i = 0; i < players.count; i++) {
+            const t = players.itemAt(i);
             if (!t)
                 continue;
             const p = t.mapFromItem(root, x, y);
@@ -143,59 +144,23 @@ Item {
         return stacks[group] || [];
     }
 
-    Shelf {
-        id: shelf
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier)) {
+            search.forceActiveFocus();
+            event.accepted = true;
+        }
+    }
 
+    Rectangle {
         anchors.fill: parent
-        deckRecords: {
-            root.stackRev;
-            const m = {};
-            for (const d of root.decks) {
-                const st = root.stackOf(d.group);
-                if (st.length)
-                    m[d.group] = st[st.length - 1];
-            }
-            return m;
-        }
-        decks: root.decks
-        visibleBottom: root.setShown ? root.height - root.dockHeight : root.height
-
-        onDragEnded: (x, y) => {
-            const g = root.deckAt(x, y);
-            if (g)
-                root.loadTo(root.dragRec, g);
-            root.dragRec = null;
-        }
-        onDragMoved: (x, y) => {
-            ghost.x = x - ghost.width / 2;
-            ghost.y = y - ghost.height / 2;
-            ghost.over = root.deckAt(x, y);
-        }
-        onDragStarted: id => {
-            root.dragRec = shelf.records[id];
-            root.setShown = true;
-        }
-        onLoadRequested: (id, group) => root.loadTo(shelf.records[id], group)
-        onPreferencesRequested: root.preferencesRequested()
-        // Die Bibliothek wurde neu eingelesen: die Stapel zeigen auf die neuen Platten
-        onReloaded: {
-            const s = {};
-            for (const g in root.stacks) {
-                s[g] = root.stacks[g].map(r => {
-                    const hit = shelf.urlIndex[r.tracks[r.pick].url];
-                    if (hit)
-                        hit.rec.pick = hit.i;
-                    return hit ? hit.rec : null;
-                }).filter(r => r !== null);
-            }
-            root.stacks = s;
-            root.stackRev++;
-        }
+        color: Style.bg
     }
     // Kopfzeile
     Rectangle {
-        color: Qt.rgba(0.02, 0.02, 0.02, 0.92)
-        height: 40
+        id: header
+
+        color: "#070707"
+        height: 44
         width: parent.width
 
         Rectangle {
@@ -204,52 +169,132 @@ Item {
             height: 1
             width: parent.width
         }
-        DotText {
+        Dots {
             anchors.verticalCenter: parent.verticalCenter
-            dot: 2.5
+            size: 20
             text: "DJBOX"
-            x: 18
+            x: 16
         }
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 4
-            x: 112
+            x: 104
 
+            Repeater {
+                model: [["regal", "Regal"], ["beides", "Regal + Liste"], ["liste", "Liste"]]
+
+                TextButton {
+                    required property var modelData
+
+                    checked: library.mode === modelData[0]
+                    text: modelData[1]
+
+                    onClicked: library.mode = modelData[0]
+                }
+            }
+            Item {
+                height: 1
+                width: 14
+            }
             Repeater {
                 model: [["az", "A–Z"], ["genre", "Genre"], ["bpm", "BPM"], ["jahr", "Jahr"], ["neu", "Neu"], ["farbe", "Farbe"], ["zufall", "Stöbern"]]
 
                 TextButton {
                     required property var modelData
 
-                    checked: shelf.sortMode === modelData[0]
+                    checked: library.shelf.sortMode === modelData[0]
                     text: modelData[1]
 
                     onClicked: {
-                        if (shelf.sortMode === modelData[0])
-                            shelf.relayout();
+                        library.list.sortCol = "";
+                        if (library.shelf.sortMode === modelData[0])
+                            library.shelf.relayout();
                         else
-                            shelf.sortMode = modelData[0];
+                            library.shelf.sortMode = modelData[0];
                     }
                 }
             }
         }
         Row {
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6
 
+            // Suche
+            Rectangle {
+                border.color: search.activeFocus ? Style.dim : Style.faint
+                border.width: 1
+                color: "transparent"
+                height: 26
+                width: 200
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Style.dim
+                    font.family: Style.sans
+                    font.pixelSize: 12
+                    text: "Suchen   ⌃F"
+                    visible: search.text === "" && !search.activeFocus
+                    x: 8
+                }
+                TextInput {
+                    id: search
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.right: clearSearch.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    clip: true
+                    color: Style.fg
+                    font.family: Style.sans
+                    font.pixelSize: 12
+                    selectByMouse: true
+                    selectionColor: "#444444"
+
+                    Keys.onEscapePressed: {
+                        text = "";
+                        library.shelf.forceActiveFocus();
+                    }
+                    Keys.onReturnPressed: {
+                        if (library.mode === "regal")
+                            library.shelf.forceActiveFocus();
+                        else
+                            library.list.forceActiveFocus();
+                    }
+                    onTextChanged: library.searchText = text
+                }
+                Text {
+                    id: clearSearch
+
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Style.dim
+                    font.family: Style.sans
+                    font.pixelSize: 12
+                    text: search.text ? "✕" : ""
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -6
+
+                        onClicked: search.text = ""
+                    }
+                }
+            }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 color: Style.dim
                 font.family: Style.sans
                 font.pixelSize: 12
-                rightPadding: 10
-                text: shelf.recordCount.toLocaleString(Qt.locale("de_DE"), "f", 0) + " Platten  ·  " + shelf.trackCount.toLocaleString(Qt.locale("de_DE"), "f", 0) + " Tracks"
+                leftPadding: 6
+                rightPadding: 6
+                text: (library.searchText ? library.shelf.recordCount + " von " : "") + library.shelf.totalRecords.toLocaleString(Qt.locale("de_DE"), "f", 0) + " Platten  ·  " + library.shelf.trackCount.toLocaleString(Qt.locale("de_DE"), "f", 0) + " Tracks"
             }
             TextButton {
                 enabled: root.deckCount < 4
-                text: "+ Deck"
+                text: "+ Player"
 
                 onClicked: {
                     root.deckCount++;
@@ -269,66 +314,135 @@ Item {
             }
         }
     }
-    // Das Set
-    Item {
-        id: dock
+    Library {
+        id: library
 
-        height: root.dockHeight
-        width: parent.width
-        y: root.setShown ? root.height - height : root.height
-
-        Behavior on y {
-            NumberAnimation {
-                duration: 220
-                easing.type: Easing.OutCubic
+        deckRecords: {
+            root.stackRev;
+            const m = {};
+            for (const d of root.decks) {
+                const st = root.stackOf(d.group);
+                if (st.length)
+                    m[d.group] = st[st.length - 1];
             }
+            return m;
         }
+        decks: root.decks
+        height: (root.setShown ? split.y : root.height) - y
+        width: parent.width
+        y: header.height
+
+        onDragEnded: (x, y) => {
+            const p = mapToItem(root, x, y);
+            const g = root.deckAt(p.x, p.y);
+            if (g) {
+                root.dragRec.pick = root.dragPick;
+                root.loadTo(root.dragRec, g);
+            }
+            root.dragRec = null;
+        }
+        onDragMoved: (x, y) => {
+            const p = mapToItem(root, x, y);
+            ghost.x = p.x - ghost.width / 2;
+            ghost.y = p.y - ghost.height / 2;
+            ghost.over = root.deckAt(p.x, p.y);
+        }
+        onDragStarted: (id, pick) => {
+            root.dragRec = library.shelf.records[id];
+            root.dragPick = pick;
+            root.setShown = true;
+        }
+        onLoadRequested: (id, pick, group) => {
+            const rec = library.shelf.records[id];
+            rec.pick = pick;
+            root.loadTo(rec, group);
+        }
+        onPreferencesRequested: root.preferencesRequested()
+    }
+    // Die Bibliothek wurde neu eingelesen: die Stapel zeigen auf die neuen Platten
+    Connections {
+        function onReloaded() {
+            const s = {};
+            for (const g in root.stacks) {
+                s[g] = root.stacks[g].map(r => {
+                    const hit = library.shelf.urlIndex[r.tracks[r.pick].url];
+                    if (hit)
+                        hit.rec.pick = hit.i;
+                    return hit ? hit.rec : null;
+                }).filter(r => r !== null);
+            }
+            root.stacks = s;
+            root.stackRev++;
+        }
+
+        target: library.shelf
+    }
+    // Griff zwischen Bibliothek und Set
+    Rectangle {
+        id: split
+
+        color: splitArea.containsMouse || splitArea.pressed ? "#2a2a2a" : "#121212"
+        height: 7
+        visible: root.setShown
+        width: parent.width
+        y: Math.round(header.height + (root.height - header.height) * (1 - root.boothShare))
 
         Rectangle {
-            anchors.fill: parent
-
-            gradient: Gradient {
-                GradientStop {
-                    color: Qt.rgba(0, 0, 0, 0)
-                    position: 0
-                }
-                GradientStop {
-                    color: Qt.rgba(0, 0, 0, 0.85)
-                    position: 0.12
-                }
-                GradientStop {
-                    color: "#000000"
-                    position: 1
-                }
-            }
+            anchors.centerIn: parent
+            color: Style.dim
+            height: 2
+            radius: 1
+            width: 40
         }
         MouseArea {
-            anchors.fill: parent     // Klicks zwischen den Geräten gehen nicht ans Regal
+            id: splitArea
+
+            anchors.fill: parent
+            anchors.margins: -3
+            cursorShape: Qt.SplitVCursor
             hoverEnabled: true
+
+            onPositionChanged: m => {
+                if (!pressed)
+                    return;
+                const y = split.y + m.y - 3, avail = root.height - header.height;
+                root.boothShare = Math.max(0.2, Math.min(0.85, 1 - (y - header.height) / avail));
+            }
         }
+    }
+    // Das Set
+    Item {
+        id: booth
+
+        height: root.height - y
+        visible: root.setShown
+        width: parent.width
+        y: split.y + split.height
+
         Item {
             id: rail
 
             readonly property int leftCount: Math.ceil(root.deckCount / 2)
+            readonly property int playerW: 520 + 12
 
             // links C, A · Mixer · rechts B, D
             function deckX(i) {
-                return i % 2 === 0 ? (leftCount - 1 - i / 2) * 634 : leftCount * 634 + mixer.width + 14 + (i - 1) / 2 * 634;
+                return i % 2 === 0 ? (leftCount - 1 - i / 2) * playerW : leftCount * playerW + mixer.width + 12 + (i - 1) / 2 * playerW;
             }
 
-            height: 488
-            scale: Math.max(0.5, Math.min(1, (root.width - 28) / width))
-            transformOrigin: Item.Bottom
-            width: root.deckCount * 634 + mixer.width
+            height: 770
+            scale: Math.max(0.2, Math.min((booth.width - 20) / width, (booth.height - 12) / height))
+            transformOrigin: Item.Top
+            width: root.deckCount * playerW + mixer.width
             x: (parent.width - width) / 2
-            y: parent.height - height - 6
+            y: 6
 
             Repeater {
-                id: turntables
+                id: players
 
                 model: root.decks
 
-                Turntable {
+                Player {
                     required property int index
                     required property var modelData
 
@@ -349,11 +463,10 @@ Item {
                     onRemoveRequested: root.removeDeck()
                 }
             }
-            MixerPanel {
+            Mixer {
                 id: mixer
 
-                decks: root.deckOrder
-                x: rail.leftCount * 634
+                x: rail.leftCount * rail.playerW
             }
         }
     }
@@ -363,10 +476,10 @@ Item {
 
         property string over: ""
 
-        height: 132
+        height: 120
         rotation: -4
         visible: root.dragRec !== null
-        width: 132
+        width: 120
 
         Rectangle {
             anchors.fill: parent
@@ -376,6 +489,24 @@ Item {
         CoverArt {
             anchors.fill: parent
             rec: root.dragRec
+        }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            color: Qt.rgba(0, 0, 0, 0.8)
+            height: 20
+            visible: root.dragRec !== null && root.dragRec.tracks.length > 1
+            width: parent.width
+
+            Text {
+                anchors.centerIn: parent
+                color: Style.fg
+                elide: Text.ElideRight
+                font.family: Style.sansMedium
+                font.pixelSize: 10
+                horizontalAlignment: Text.AlignHCenter
+                text: root.dragRec && root.dragRec.tracks[root.dragPick] ? "Track " + root.dragRec.tracks[root.dragPick].pos + " · " + root.dragRec.tracks[root.dragPick].title : ""
+                width: parent.width - 8
+            }
         }
     }
     Repeater {
@@ -412,3 +543,4 @@ Item {
         }
     }
 }
+// [/AI-generated]

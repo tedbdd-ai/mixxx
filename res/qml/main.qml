@@ -43,6 +43,8 @@ ApplicationWindow {
 
         anchors.fill: parent
 
+        // [AI-generated] The DJBOX loading code from here to the end of this
+        // Loader was written by an AI agent (Claude, Anthropic).
         // DJBOX: the record shelf is the main window. If it fails to load, fall
         // back to the stock Mixxx window instead of quitting. Both windows are
         // loaded by file name so that an error in DJBOX cannot break this file.
@@ -71,6 +73,7 @@ ApplicationWindow {
                 Qt.quit();
             }
         }
+        // [/AI-generated]
     }
     Rectangle {
         id: splash

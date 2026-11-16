@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "."
 
@@ -34,7 +35,6 @@ Item {
             color: index === root.index ? Style.fg : Style.dim
             font.family: Style.sans
             font.pixelSize: 8
-            font.weight: Font.Medium
             horizontalAlignment: Text.AlignHCenter
             text: modelData
             width: root.step
@@ -75,3 +75,4 @@ Item {
         }
     }
 }
+// [/AI-generated]

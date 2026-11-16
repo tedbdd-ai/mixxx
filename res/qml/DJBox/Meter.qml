@@ -1,22 +1,21 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import "."
 
-// Pegelanzeige als Punktmatrix: grün, oben gelb, ganz oben rot.
-Item {
+// Pegelanzeige aus Leuchtpunkten: grün, oben orange, ganz oben rot.
+// Nur Rechtecke, die ihre Farbe wechseln: billig, auch wenn der Pegel 60-mal pro Sekunde kommt.
+Column {
     id: root
 
-    property int columns: 2
     property real dot: 6
+    property real gap: 2
     required property string group
     required property string key
     readonly property int lit: Math.round(Math.max(0, Math.min(1, control.value)) * segments)
-    property int segments: 16
+    property int segments: 15
 
-    height: segments * dot
-    width: columns * dot
-
-    onLitChanged: canvas.requestPaint()
+    spacing: gap
 
     Mixxx.ControlProxy {
         id: control
@@ -24,24 +23,19 @@ Item {
         group: root.group
         key: root.key
     }
-    Canvas {
-        id: canvas
+    Repeater {
+        model: root.segments
 
-        anchors.fill: parent
+        Rectangle {
+            readonly property int fromBottom: root.segments - 1 - index
+            required property int index
+            readonly property bool on: fromBottom < root.lit
 
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            const d = root.dot, n = root.segments;
-            for (let i = 0; i < n; i++) {
-                const fromBottom = n - 1 - i, on = fromBottom < root.lit;
-                ctx.fillStyle = !on ? "#1c1c1c" : fromBottom >= n - 2 ? Style.ledRed : fromBottom >= n - 5 ? Style.ledAmber : Style.ledGreen;
-                for (let c = 0; c < root.columns; c++) {
-                    ctx.beginPath();
-                    ctx.arc((c + 0.5) * d, (i + 0.5) * d, d * 0.36, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
+            color: !on ? "#1d1e1f" : fromBottom >= root.segments - 2 ? Style.ledRed : fromBottom >= root.segments - 5 ? Style.ledAmber : Style.ledGreen
+            height: root.dot * 0.62
+            radius: 1
+            width: root.dot
         }
     }
 }
+// [/AI-generated]

@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import "." as Skin
 import "DJBox" as DJBox
 import Mixxx 1.0 as Mixxx
@@ -108,3 +109,4 @@ Item {
         }
     }
 }
+// [/AI-generated]

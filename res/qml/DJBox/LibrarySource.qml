@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import "ShelfLogic.mjs" as Logic
@@ -99,3 +100,4 @@ Item {
         target: root.model
     }
 }
+// [/AI-generated]

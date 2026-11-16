@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "."
 
@@ -29,9 +30,8 @@ Rectangle {
 
         anchors.centerIn: parent
         color: root.checked ? "#000000" : Style.fg
-        font.family: Style.sans
+        font.family: Style.sansMedium
         font.pixelSize: 12
-        font.weight: Font.Medium
     }
     MouseArea {
         id: area
@@ -47,3 +47,4 @@ Rectangle {
         }
     }
 }
+// [/AI-generated]

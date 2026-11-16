@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "."
 import "ShelfLogic.mjs" as Logic
@@ -50,9 +51,8 @@ Rectangle {
         Text {
             color: Style.fg
             elide: Text.ElideRight
-            font.family: Style.sans
+            font.family: Style.sansSemi
             font.pixelSize: 19
-            font.weight: Font.DemiBold
             text: root.rec ? root.rec.title : ""
             topPadding: 1
             width: parent.width
@@ -94,8 +94,8 @@ Rectangle {
                     font.pixelSize: 9
                     text: "BPM"
                 }
-                DotText {
-                    dot: 3
+                Dots {
+                    size: 22
                     text: root.track && root.track.bpm ? root.track.bpm.toFixed(1) : "---.-"
                 }
             }
@@ -109,9 +109,9 @@ Rectangle {
                     font.pixelSize: 9
                     text: "TONART"
                 }
-                DotText {
+                Dots {
                     color: root.track && root.track.key ? Logic.keyColor(root.track.key) : Style.faint
-                    dot: 3
+                    size: 22
                     text: root.track && root.track.key ? root.track.key.slice(0, 4) : "--"
                 }
             }
@@ -125,8 +125,8 @@ Rectangle {
                     font.pixelSize: 9
                     text: "LÄNGE"
                 }
-                DotText {
-                    dot: 3
+                Dots {
+                    size: 22
                     text: root.track ? Logic.fmtTime(root.track.dur) : "-:--"
                 }
             }
@@ -177,7 +177,6 @@ Rectangle {
                     elide: Text.ElideRight
                     font.family: Style.sans
                     font.pixelSize: 12
-                    font.weight: row.isPick ? Font.DemiBold : Font.Normal
                     text: row.modelData.title + (root.rec && row.modelData.artist && row.modelData.artist !== root.rec.artist ? "  –  " + row.modelData.artist : "")
                     width: parent.width - 34 - 150
                     x: 34
@@ -251,3 +250,4 @@ Rectangle {
         }
     }
 }
+// [/AI-generated]

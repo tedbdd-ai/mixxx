@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 // DJBOX: reine Logik fürs Plattenregal. Keine Abhängigkeit zu Mixxx, damit dieselben
 // Funktionen später auch eine andere Quelle (z. B. Navidrome/Subsonic) bedienen können.
 // Eine Quelle liefert Zeilen der Form
@@ -8,7 +9,7 @@ export const ROWS = 3;
 export const FW = 254;      // Breite eines Fachs samt Stahlkante
 export const T = 4;         // Stärke der Stahlkante
 export const IN = 250;      // Innenmaß eines Fachs
-export const Y0 = 50;       // oberer Rand der Wand
+export const Y0 = 12;       // oberer Rand der Wand
 export const X0 = 60;       // linker Rand der Wand
 export const PITCH = 4;     // Abstand von Rücken zu Rücken
 export const COVER = 204;   // Kantenlänge der herausgezogenen Hülle
@@ -251,51 +252,51 @@ export function fachYB(f) {
     return Y0 + T + IN + (f % ROWS) * FW;
 }
 
-// Platten in die Fächer stellen. Die Wand wächst mit der Sammlung: so viele Spalten wie nötig.
-export function layout(records, mode) {
-    const list = records.filter(r => !r.away);
+// Platten in die Fächer stellen, Fach für Fach, Spalte für Spalte (oben, Mitte, unten).
+// Die Wand ist so breit wie nötig, mindestens aber minCols Spalten (füllt den sichtbaren Bereich).
+export function layout(records, mode, minCols) {
+    const list = records.slice();
     sortRecords(list, mode);
-    const cols = Math.max(7, Math.ceil(list.length / (ROWS * 52)) + 1);
-    const fachs = [];
-    for (let f = 0; f < cols * ROWS; f++)
-        fachs.push({
-            "f": f,
-            "recs": [],
-            "dividers": [],
-            "label": ""
-        });
-    const reserve = f => (hash("fach" + f) % 5) * 9;
+    const cap = f => IN - 8 - (hash("fach" + f) % 5) * 9;   // jedes Fach ist ein wenig anders voll
+    // erst einräumen, dann die Fächer anlegen: so gibt es nie mehr leere Spalten als nötig
+    const placed = [];
     let f = 0, x = 0, last = null;
-    for (const r of list) {
+    for (let i = 0; i < list.length; i++) {
+        const r = list[i];
         const key = sortKey(r, mode);
         if (key !== last && key !== "") {
-            if (x + 8 + PITCH > IN - 8 - reserve(f)) {
-                f++;
+            if (x > 0 && x + 6 + PITCH > cap(f)) {
+                f += 1;
                 x = 0;
             }
-            if (f < fachs.length) {
-                fachs[f].dividers.push({
-                    "x": fachX(f) + 4 + x,
-                    "label": key
-                });
-                x += 6;
-            }
+            placed.push({ "divider": true, "f": f, "x": x, "label": key });
+            x += 6;
             last = key;
         }
-        if (x + PITCH > IN - 8 - reserve(f)) {
-            f++;
+        if (x > 0 && x + PITCH > cap(f)) {
+            f += 1;
             x = 0;
         }
-        if (f >= fachs.length) {
-            r.f = -1;
+        placed.push({ "divider": false, "f": f, "x": x, "rec": r });
+        x += PITCH;
+    }
+    const usedCols = list.length ? Math.floor(f / ROWS) + 1 : 0;
+    const cols = Math.max(minCols || 1, usedCols);
+    const fachs = [];
+    for (let k = 0; k < cols * ROWS; k++)
+        fachs.push({ "f": k, "recs": [], "dividers": [], "label": "" });
+    for (const p of placed) {
+        const fa = fachs[p.f];
+        if (p.divider) {
+            fa.dividers.push({ "x": fachX(p.f) + 4 + p.x, "label": p.label });
             continue;
         }
-        r.f = f;
-        r.tx = fachX(f) + 4 + x;
-        r.ty = fachYB(f);
+        const r = p.rec;
+        r.f = p.f;
+        r.tx = fachX(p.f) + 4 + p.x;
+        r.ty = fachYB(p.f);
         r.rot = 0;
-        fachs[f].recs.push(r);
-        x += PITCH;
+        fa.recs.push(r);
     }
     const two = (p, q) => p === q ? p : p + " – " + q;
     for (const fa of fachs) {
@@ -304,7 +305,7 @@ export function layout(records, mode) {
             continue;
         const a = fa.recs[0], b = fa.recs[n - 1];
         // am Fachende lehnen ein paar Platten schräg, wenn Luft ist
-        if (fachX(fa.f) + IN - 4 - (b.tx + 4) > 22 && n > 6)
+        if (fachX(fa.f) + IN - 4 - (b.tx + 4) > 26 && n > 6)
             for (let i = Math.max(0, n - 4); i < n; i++) {
                 fa.recs[i].rot = -0.11;
                 fa.recs[i].tx += 22;
@@ -319,9 +320,55 @@ export function layout(records, mode) {
         "cols": cols,
         "fachs": fachs,
         "count": list.length,
+        "order": list,
         "width": X0 * 2 + cols * FW + T,
-        "height": Y0 + ROWS * FW + 30
+        "height": Y0 + ROWS * FW + 30,
+        // fürs Log: wie voll ist welches Fach
+        "summary": list.length + " Platten in " + (list.length ? f + 1 : 0) + " Fächern, je Fach: " + fachs.slice(0, f + 1).map(q => q.recs.length).join(",")
     };
+}
+
+// Suche: alle Wörter müssen in Interpret, Titel, Genre oder einem Tracktitel vorkommen
+export function matches(rec, query) {
+    const words = String(query || "").toLowerCase().split(/\s+/).filter(w => w);
+    if (!words.length)
+        return true;
+    if (!rec.search)
+        rec.search = (rec.artist + " " + rec.title + " " + rec.genre + " " + rec.tracks.map(t => t.title + " " + t.artist + " " + t.key).join(" ")).toLowerCase();
+    return words.every(w => rec.search.indexOf(w) >= 0);
+}
+
+// Die Liste: alle Tracks, standardmäßig in der Reihenfolge des Regals
+export function trackRows(order) {
+    const rows = [];
+    for (const rec of order)
+        rec.tracks.forEach((t, i) => rows.push({ "rec": rec, "i": i, "t": t }));
+    return rows;
+}
+export function sortRows(rows, col, desc) {
+    if (!col)
+        return rows;
+    const val = {
+        "title": r => r.t.title.toLowerCase(),
+        "artist": r => (r.t.artist || r.rec.artist).toLowerCase(),
+        "album": r => r.rec.title.toLowerCase(),
+        "bpm": r => r.t.bpm || 9999,
+        "key": r => camelotIndex(r.t.key),
+        "dur": r => r.t.dur,
+        "genre": r => (r.rec.genre || "~").toLowerCase(),
+        "added": r => r.rec.added
+    }[col];
+    const out = rows.slice();
+    out.sort((a, b) => {
+        const x = val(a), y = val(b);
+        const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+        return desc ? -c : c;
+    });
+    return out;
+}
+function camelotIndex(k) {
+    const n = parseInt(k, 10);
+    return isNaN(n) ? 99 : n * 2 + (/B/i.test(String(k)) ? 1 : 0);
 }
 
 // Erzeugte Hülle für Platten ohne Coverbild: zeichnet in einen 2D-Kontext der Kantenlänge s
@@ -420,3 +467,4 @@ export function drawSleeve(ctx, rec, s) {
         ctx.fillText(rec.title.slice(0, 28), s * 0.07, y0 + s * 0.09);
     }
 }
+// [/AI-generated]

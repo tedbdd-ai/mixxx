@@ -1,21 +1,24 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import "."
 
-// Drehregler, an einen Mixxx-Regler gebunden.
-// Ziehen hoch/runter dreht, Umschalt = fein, Scrollen = kleine Schritte, Doppelklick = Grundstellung.
+// Drehregler am Gerät, an einen Mixxx-Regler gebunden.
+// Ziehen hoch/runter dreht (Umschalt = fein), Scrollen in kleinen Schritten, Doppelklick = Grundstellung.
+// Alles aus Rechtecken: kein Zeichnen zur Laufzeit.
 Item {
     id: root
 
+    property color capColor: "#2a2b2d"
     property bool center: true                 // Raste in der Mitte
     required property string group
     property string hi: ""
     required property string key
     property string label: ""
+    property bool labelAbove: false
     property string lo: ""
     readonly property real parameter: control.parameter
     property real radius: 14
-    property bool silver: false
 
     function setParameter(p) {
         p = Math.max(0, Math.min(1, p));
@@ -25,8 +28,8 @@ Item {
     }
 
     activeFocusOnTab: true
-    height: radius * 2 + (label !== "" ? 26 : 12)
-    width: radius * 2 + 28
+    height: dial.height + (label !== "" ? 14 : 0)
+    width: Math.max(dial.width + 16, labelText.implicitWidth)
 
     Keys.onPressed: event => {
         const step = event.modifiers & Qt.ShiftModifier ? 0.005 : 0.02;
@@ -47,108 +50,130 @@ Item {
         group: root.group
         key: root.key
     }
-    Canvas {
+    Text {
+        id: labelText
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        color: Style.ink
+        font.capitalization: Font.AllUppercase
+        font.family: Style.sansMedium
+        font.letterSpacing: 0.4
+        font.pixelSize: 8
+        text: root.label
+        y: root.labelAbove ? 0 : dial.y + dial.height + 2
+    }
+    Item {
         id: dial
 
         anchors.horizontalCenter: parent.horizontalCenter
         height: width
         width: root.radius * 2 + 12
-        y: 0
+        y: root.labelAbove && root.label !== "" ? 12 : 0
 
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            const c = width / 2;
-            ctx.strokeStyle = Style.dim;
-            for (let i = 0; i <= 10; i++) {
-                const a = (-225 + i * 27) * Math.PI / 180, big = i === 0 || i === 5 || i === 10;
-                ctx.lineWidth = big ? 1.2 : 0.7;
-                ctx.beginPath();
-                ctx.moveTo(c + Math.cos(a) * (root.radius + 2.5), c + Math.sin(a) * (root.radius + 2.5));
-                ctx.lineTo(c + Math.cos(a) * (root.radius + (big ? 6 : 4.5)), c + Math.sin(a) * (root.radius + (big ? 6 : 4.5)));
-                ctx.stroke();
+        // Skala
+        Repeater {
+            model: 11
+
+            Rectangle {
+                readonly property bool big: index === 0 || index === 5 || index === 10
+                required property int index
+
+                antialiasing: true
+                color: big ? Style.ink : "#6b6b6b"
+                height: big ? 4 : 3
+                rotation: -135 + index * 27
+                transformOrigin: Item.Bottom
+                width: 1
+                x: dial.width / 2 - 0.5
+                y: dial.height / 2 - (root.radius + 2) - height
             }
         }
-    }
-    Rectangle {
-        id: body
-
-        anchors.centerIn: dial
-        border.color: root.activeFocus ? Style.fg : root.silver ? "#e6e6e6" : "#3b3b3b"
-        border.width: 1
-        height: width
-        radius: width / 2
-        rotation: -135 + 270 * control.parameter
-        width: root.radius * 2
-
-        gradient: Gradient {
-            GradientStop {
-                color: root.silver ? "#d9d9d9" : "#2a2a2a"
-                position: 0
-            }
-            GradientStop {
-                color: root.silver ? "#8c8c8c" : "#101010"
-                position: 1
-            }
+        Text {
+            color: Style.dim
+            font.family: Style.sans
+            font.pixelSize: 6
+            text: root.lo
+            x: -2
+            y: dial.height - 7
         }
-
+        Text {
+            color: Style.dim
+            font.family: Style.sans
+            font.pixelSize: 6
+            horizontalAlignment: Text.AlignRight
+            text: root.hi
+            width: 12
+            x: dial.width - 10
+            y: dial.height - 7
+        }
+        // Regelkappe
         Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            color: root.silver ? "#101010" : Style.fg
-            height: root.radius * 0.72
-            width: 2
-            y: 2
-        }
-    }
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        color: Style.ink
-        font.capitalization: Font.AllUppercase
-        font.family: Style.sans
-        font.letterSpacing: 0.5
-        font.pixelSize: 9
-        font.weight: Font.Medium
-        text: root.label
-        y: dial.height + 1
-    }
-    Text {
-        color: Style.dim
-        font.family: Style.sans
-        font.pixelSize: 7
-        horizontalAlignment: Text.AlignRight
-        text: root.lo
-        width: 20
-        x: dial.x - 17
-        y: dial.height - 9
-    }
-    Text {
-        color: Style.dim
-        font.family: Style.sans
-        font.pixelSize: 7
-        text: root.hi
-        x: dial.x + dial.width - 3
-        y: dial.height - 9
-    }
-    MouseArea {
-        property real p0: 0
-        property real y0: 0
+            anchors.centerIn: parent
+            border.color: root.activeFocus ? Style.fg : "#3c3d40"
+            border.width: 1
+            color: "#0e0e0f"
+            height: width
+            radius: width / 2
+            width: root.radius * 2
 
-        anchors.fill: dial
-        cursorShape: Qt.SizeVerCursor
+            Rectangle {
+                anchors.centerIn: parent
+                height: width
+                radius: width / 2
+                width: parent.width - 6
 
-        onDoubleClicked: control.reset()
-        onPositionChanged: m => {
-            if (pressed)
-                root.setParameter(p0 + (y0 - m.y) / (m.modifiers & Qt.ShiftModifier ? 900 : 180));
+                gradient: Gradient {
+                    GradientStop {
+                        color: Qt.lighter(root.capColor, 1.35)
+                        position: 0
+                    }
+                    GradientStop {
+                        color: root.capColor
+                        position: 0.55
+                    }
+                    GradientStop {
+                        color: Qt.darker(root.capColor, 1.5)
+                        position: 1
+                    }
+                }
+            }
+            Item {
+                anchors.fill: parent
+                rotation: -135 + 270 * control.parameter
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    antialiasing: true
+                    color: "#f2f2f2"
+                    height: root.radius * 0.8
+                    radius: 1
+                    width: 2
+                    y: 2
+                }
+            }
         }
-        onPressed: m => {
-            root.forceActiveFocus();
-            y0 = m.y;
-            p0 = control.parameter;
-        }
-        onWheel: w => {
-            const d = w.pixelDelta.y !== 0 ? w.pixelDelta.y / 600 : w.angleDelta.y / 120 * 0.02;
-            root.setParameter(control.parameter + d);
+        MouseArea {
+            property real p0: 0
+            property real y0: 0
+
+            anchors.fill: parent
+            cursorShape: Qt.SizeVerCursor
+
+            onDoubleClicked: control.reset()
+            onPositionChanged: m => {
+                if (pressed)
+                    root.setParameter(p0 + (y0 - m.y) / (m.modifiers & Qt.ShiftModifier ? 900 : 180));
+            }
+            onPressed: m => {
+                root.forceActiveFocus();
+                y0 = m.y;
+                p0 = control.parameter;
+            }
+            onWheel: w => {
+                const d = w.pixelDelta.y !== 0 ? w.pixelDelta.y / 600 : w.angleDelta.y / 120 * 0.02;
+                root.setParameter(control.parameter + d);
+            }
         }
     }
 }
+// [/AI-generated]

@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "ShelfLogic.mjs" as Logic
 
@@ -34,3 +35,4 @@ Item {
         sourceSize.width: 512
     }
 }
+// [/AI-generated]

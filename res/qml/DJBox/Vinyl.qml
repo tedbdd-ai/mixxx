@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "."
 import "ShelfLogic.mjs" as Logic
@@ -97,3 +98,4 @@ Canvas {
     onRecChanged: requestPaint()
     onSizeChanged: requestPaint()
 }
+// [/AI-generated]

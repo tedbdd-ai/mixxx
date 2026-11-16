@@ -34,8 +34,10 @@ class QmlLibraryTrackListColumn : public QObject {
         Key = ColumnCache::COLUMN_LIBRARYTABLE_KEY,
         FileType = ColumnCache::COLUMN_LIBRARYTABLE_FILETYPE,
         Bitrate = ColumnCache::COLUMN_LIBRARYTABLE_BITRATE,
+        // [AI-generated] Written by an AI agent (Claude, Anthropic).
         // DJBOX: the record shelf groups tracks into records (albums) and
         // sorts them by genre, date added and cover colour.
+        // [/AI-generated]
         AlbumArtist = ColumnCache::COLUMN_LIBRARYTABLE_ALBUMARTIST,
         Genre = ColumnCache::COLUMN_LIBRARYTABLE_GENRE,
         TrackNumber = ColumnCache::COLUMN_LIBRARYTABLE_TRACKNUMBER,

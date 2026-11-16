@@ -1,3 +1,4 @@
+// [AI-generated] This file was written by an AI agent (Claude, Anthropic).
 import QtQuick
 import "."
 import "ShelfLogic.mjs" as Logic
@@ -5,18 +6,21 @@ import "ShelfLogic.mjs" as Logic
 // Das Plattenregal: die Mixxx-Bibliothek als Wand voller Platten.
 // Schweben zieht eine Platte heraus, Scrollen blättert (links/rechts) und wechselt die Reihe (hoch/runter),
 // ein Klick hält die Platte fest, Ziehen trägt sie zu einem Deck.
+// Die Wand besteht aus Rechtecken (keine Canvas): scharf auf Retina-Displays, und es wird nur
+// gebaut, was gerade zu sehen ist.
 Item {
     id: root
 
-    readonly property int cardWidth: 448
+    readonly property int cardWidth: 430
     property var deckRecords: ({})                  // Gruppe → Platte, die gerade auf dem Deck liegt
     property var decks: []                          // [{ group: "[Channel1]", label: "A" }]
+    property string filterText: ""
     property var lay: null
     property int layRev: 0
     readonly property alias librarySource: source
     readonly property real maxPanX: lay ? Math.max(0, lay.width - width) : 0
-    readonly property real maxPanY: lay ? Math.max(0, lay.height - visibleBottom) : 0
-    property bool navMode: false                    // Auswahl kam vom Scrollen; der Zeiger ruht
+    readonly property real maxPanY: lay ? Math.max(0, lay.height - height) : 0
+    property bool navMode: false                    // Auswahl kam vom Scrollen oder aus der Liste; der Zeiger ruht
     property point navPt
     property real panX: 0
     property real panY: 0
@@ -27,16 +31,16 @@ Item {
     property var sel: null                          // die herausgezogene Platte
     property int selRev: 0
     property string sortMode: "az"
+    property int totalRecords: records.length
     property int trackCount: 0
     property var urlIndex: ({})                     // Datei → { rec, i }
-    property real visibleBottom: height             // darunter liegt das Set
     property real wallX: panX
     property real wallY: panY
 
+    // Platten gehen als Nummer (Index in records) durch Signale: als Objekt kämen sie als Kopie an
     signal dragEnded(real x, real y)
     signal dragMoved(real x, real y)
-    // Platten gehen als Nummer (Index in records) durch Signale: als Objekt kämen sie als Kopie an
-    signal dragStarted(int id)
+    signal dragStarted(int id, int pick)
     signal loadRequested(int id, string group)
     signal preferencesRequested
     signal reloaded
@@ -47,7 +51,7 @@ Item {
         navMode = false;
     }
     function ensureVisible() {
-        if (!sel)
+        if (!sel || sel.f < 0)
             return;
         const sx = sel.tx - panX;
         if (sx > width * 0.52)
@@ -56,17 +60,17 @@ Item {
             setPan(panX + sx - 150, panY);
         const top = Logic.Y0 + (sel.f % Logic.ROWS) * Logic.FW, bot = top + Logic.FW + 26;
         let y = panY;
-        if (bot - y > visibleBottom)
-            y = bot - visibleBottom;
-        if (top - y < 48)
-            y = top - 48;
+        if (bot - y > height)
+            y = bot - height;
+        if (top - y < 8)
+            y = top - 8;
         setPan(panX, y);
     }
     function firstVisible() {
         if (!lay)
             return null;
         for (const fa of lay.fachs) {
-            if (fa.recs.length && Logic.fachX(fa.f) - panX >= 0 && Logic.fachYB(fa.f) - panY <= visibleBottom)
+            if (fa.recs.length && Logic.fachX(fa.f) + Logic.IN - panX >= 0 && Logic.fachYB(fa.f) - panY <= height)
                 return fa.recs[0];
         }
         return null;
@@ -97,85 +101,12 @@ Item {
         return h && h.d < 6 ? h.rec : null;
     }
     function nav(rec) {
-        if (!rec)
+        if (!rec || rec.f < 0)
             return;
         select(rec);
         navMode = true;
         navPt = Qt.point(mouse.mouseX, mouse.mouseY);
         ensureVisible();
-    }
-    function paintColumn(ctx, col) {
-        const X0 = Logic.X0, Y0 = Logic.Y0, FW = Logic.FW, T = Logic.T, IN = Logic.IN, ROWS = Logic.ROWS;
-        ctx.reset();
-        if (!lay)
-            return;
-        const x0 = X0 + col * FW, bot = Y0 + ROWS * FW + T;
-        ctx.translate(-x0, 0);
-        if (col < lay.cols) {
-            for (let row = 0; row < ROWS; row++) {
-                const fa = lay.fachs[col * ROWS + row], x = Logic.fachX(fa.f), yb = Logic.fachYB(fa.f);
-                ctx.fillStyle = "#0b0b0b";
-                ctx.fillRect(x, yb - IN, IN, IN);
-                for (const r of fa.recs) {
-                    ctx.save();
-                    ctx.translate(r.tx, r.ty);
-                    if (r.rot)
-                        ctx.rotate(r.rot);
-                    ctx.fillStyle = r.tone;
-                    ctx.fillRect(0, -r.h, 3, r.h);
-                    if (r.band) {
-                        ctx.fillStyle = r.band.c;
-                        ctx.fillRect(0, -r.h * r.band.y, 3, r.band.len);
-                    }
-                    ctx.fillStyle = "rgba(255,255,255,0.2)";
-                    ctx.fillRect(0, -r.h, 3, 1);
-                    ctx.fillStyle = "rgba(0,0,0,0.32)";
-                    ctx.fillRect(2.4, -r.h, 0.6, r.h);
-                    ctx.restore();
-                }
-                // Trennkarten mit Reiter
-                ctx.font = "bold 10px \"" + Style.sans + "\"";
-                ctx.textBaseline = "middle";
-                for (const d of fa.dividers) {
-                    ctx.fillStyle = "#e4e4e4";
-                    ctx.fillRect(d.x, yb - 226, 1.5, 226);
-                    const w = Math.max(4, Math.min(ctx.measureText(d.label).width + 10, d.maxW));
-                    ctx.fillRect(d.x, yb - 240, w, 15);
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(d.x, yb - 240, w, 15);
-                    ctx.clip();
-                    ctx.fillStyle = "#000000";
-                    ctx.fillText(d.label, d.x + 5, yb - 232);
-                    ctx.restore();
-                }
-                const g = ctx.createLinearGradient(0, yb - IN, 0, yb - IN + 40);
-                g.addColorStop(0, "rgba(0,0,0,0.75)");
-                g.addColorStop(1, "rgba(0,0,0,0)");
-                ctx.fillStyle = g;
-                ctx.fillRect(x, yb - IN, IN, 40);
-                ctx.font = "10px \"" + Style.mono + "\"";
-                ctx.fillStyle = "#6c6c6c";
-                ctx.fillText(String(fa.f + 1).padStart(2, "0"), x + 2, yb + 13);
-                if (fa.label) {
-                    ctx.font = "11px \"" + Style.sans + "\"";
-                    ctx.fillStyle = "#a5a5a5";
-                    ctx.fillText(fa.label, x + 24, yb + 13);
-                }
-            }
-            // Böden
-            for (let r = 0; r <= ROWS; r++) {
-                ctx.fillStyle = "#1b1b1c";
-                ctx.fillRect(x0, Y0 + r * FW, FW, T);
-                ctx.fillStyle = "rgba(255,255,255,0.1)";
-                ctx.fillRect(x0, Y0 + r * FW, FW, 1);
-            }
-        }
-        // Stütze
-        ctx.fillStyle = "#1b1b1c";
-        ctx.fillRect(x0, Y0, T, bot - Y0);
-        ctx.fillStyle = "rgba(255,255,255,0.1)";
-        ctx.fillRect(x0, Y0, 1, bot - Y0);
     }
     function pin(v) {
         if (!sel)
@@ -186,20 +117,23 @@ Item {
     }
     function relayout() {
         clearSel();
-        lay = Logic.layout(records, sortMode);
+        for (const r of records)
+            r.f = -1;
+        const shown = filterText ? records.filter(r => Logic.matches(r, filterText)) : records;
+        lay = Logic.layout(shown, sortMode, Math.ceil(width / Logic.FW) + 1);
+        console.info("DJBOX shelf:", lay.summary);
         layRev++;
         setPan(panX, panY);
     }
-
     // Bibliothek aus der Quelle lesen und zu Platten zusammenfassen
     function reload() {
         const rows = source.rows();
         // die herausgezogene Platte übersteht das Neueinlesen
         const keepUrl = sel ? sel.tracks[sel.pick].url : "", keepPinned = pinned;
         trackCount = rows.length;
-        records = Logic.buildRecords(rows);
+        const recs = Logic.buildRecords(rows);
         const idx = {};
-        for (const rec of records) {
+        for (const rec of recs) {
             rec.tracks.forEach((t, i) => {
                 idx[t.url] = {
                     "rec": rec,
@@ -207,6 +141,7 @@ Item {
                 };
             });
         }
+        records = recs;
         urlIndex = idx;
         relayout();
         const keep = keepUrl ? idx[keepUrl] : null;
@@ -314,6 +249,8 @@ Item {
             return;
         event.accepted = true;
     }
+    onFilterTextChanged: filterTimer.restart()
+    onHeightChanged: setPan(panX, panY)
     onSelChanged: {
         pullAnim.stop();
         pull.o = 0;
@@ -321,9 +258,10 @@ Item {
             pullAnim.start();
     }
     onSortModeChanged: relayout()
-    onVisibleBottomChanged: {
-        if (sel && (pinned || navMode))
-            ensureVisible();
+    onWidthChanged: {
+        // breiteres Fenster: so viele Spalten, dass die Wand den Platz füllt
+        if (lay && Math.ceil(width / Logic.FW) + 1 > lay.cols)
+            widthTimer.restart();
         else
             setPan(panX, panY);
     }
@@ -340,14 +278,29 @@ Item {
 
         onTriggered: root.reload()
     }
+    Timer {
+        id: filterTimer
+
+        interval: 180
+
+        onTriggered: root.relayout()
+    }
+    Timer {
+        id: widthTimer
+
+        interval: 120
+
+        onTriggered: root.relayout()
+    }
     Rectangle {
         anchors.fill: parent
         color: "#060606"
     }
+    // Die Wand, Spalte für Spalte. Nur sichtbare Spalten werden gebaut.
     ListView {
         id: wallView
 
-        cacheBuffer: 800
+        cacheBuffer: Logic.FW * 2
         contentX: root.wallX - Logic.X0
         height: root.lay ? root.lay.height : 0
         interactive: false
@@ -356,15 +309,164 @@ Item {
         width: root.width
         y: -root.wallY
 
-        delegate: Canvas {
+        delegate: Item {
+            id: column
+
+            readonly property int col: index
             required property int index
-            property int rev: root.layRev
+            readonly property real x0: Logic.X0 + col * Logic.FW
 
             height: wallView.height
             width: Logic.FW
 
-            onPaint: root.paintColumn(getContext("2d"), index)
-            onRevChanged: requestPaint()
+            // Fächer dieser Spalte
+            Repeater {
+                model: root.lay && column.col < root.lay.cols ? Logic.ROWS : 0
+
+                Item {
+                    id: fach
+
+                    readonly property var fa: root.lay.fachs[column.col * Logic.ROWS + index]
+                    required property int index
+                    readonly property real yb: Logic.fachYB(fa.f)
+
+                    height: Logic.IN
+                    width: Logic.IN
+                    x: Logic.T
+                    y: yb - Logic.IN
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "#0b0b0b"
+                    }
+                    Repeater {
+                        model: fach.fa.recs
+
+                        Rectangle {
+                            required property var modelData
+
+                            antialiasing: modelData.rot !== 0
+                            color: modelData.tone
+                            height: modelData.h
+                            rotation: modelData.rot * 180 / Math.PI
+                            transformOrigin: Item.BottomLeft
+                            width: 3
+                            x: modelData.tx - column.x0 - Logic.T
+                            y: Logic.IN - modelData.h
+
+                            Rectangle {
+                                color: parent.modelData.band ? parent.modelData.band.c : "transparent"
+                                height: parent.modelData.band ? parent.modelData.band.len : 0
+                                visible: !!parent.modelData.band
+                                width: 3
+                                y: parent.modelData.band ? parent.height * (1 - parent.modelData.band.y) : 0
+                            }
+                        }
+                    }
+                    // Trennkarten mit Reiter
+                    Repeater {
+                        model: fach.fa.dividers
+
+                        Item {
+                            required property var modelData
+
+                            x: modelData.x - column.x0 - Logic.T
+                            y: Logic.IN - 240
+
+                            Rectangle {
+                                color: "#e4e4e4"
+                                height: 226
+                                width: 1.5
+                                y: 14
+                            }
+                            Rectangle {
+                                clip: true
+                                color: "#e4e4e4"
+                                height: 15
+                                width: Math.max(4, Math.min(tab.implicitWidth + 10, parent.modelData.maxW))
+
+                                Text {
+                                    id: tab
+
+                                    color: "#000000"
+                                    font.family: Style.sansSemi
+                                    font.pixelSize: 10
+                                    text: parent.parent.modelData.label
+                                    x: 5
+                                    y: 1
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 40
+                        width: parent.width
+
+                        gradient: Gradient {
+                            GradientStop {
+                                color: Qt.rgba(0, 0, 0, 0.75)
+                                position: 0
+                            }
+                            GradientStop {
+                                color: Qt.rgba(0, 0, 0, 0)
+                                position: 1
+                            }
+                        }
+                    }
+                    Text {
+                        color: "#6c6c6c"
+                        font.family: Style.mono
+                        font.pixelSize: 10
+                        text: String(fach.fa.f + 1).padStart(2, "0")
+                        visible: fach.index === Logic.ROWS - 1
+                        x: 2
+                        y: Logic.IN + 6
+                    }
+                    Text {
+                        color: "#a5a5a5"
+                        elide: Text.ElideRight
+                        font.family: Style.sans
+                        font.pixelSize: 11
+                        text: fach.fa.label
+                        visible: fach.index === Logic.ROWS - 1
+                        width: Logic.IN - 30
+                        x: 24
+                        y: Logic.IN + 5
+                    }
+                }
+            }
+            // Böden
+            Repeater {
+                model: root.lay && column.col < root.lay.cols ? Logic.ROWS + 1 : 0
+
+                Rectangle {
+                    required property int index
+
+                    color: "#1b1b1c"
+                    height: Logic.T
+                    width: Logic.FW
+                    y: Logic.Y0 + index * Logic.FW
+
+                    Rectangle {
+                        color: Qt.rgba(1, 1, 1, 0.1)
+                        height: 1
+                        width: parent.width
+                    }
+                }
+            }
+            // Stütze
+            Rectangle {
+                color: "#1b1b1c"
+                height: Logic.ROWS * Logic.FW + Logic.T
+                width: Logic.T
+                y: Logic.Y0
+
+                Rectangle {
+                    color: Qt.rgba(1, 1, 1, 0.1)
+                    height: parent.height
+                    width: 1
+                }
+            }
         }
     }
     Rectangle {
@@ -513,7 +615,7 @@ Item {
                 if (!dragging) {
                     dragging = true;
                     root.navMode = false;
-                    root.dragStarted(rec.id);
+                    root.dragStarted(rec.id, rec.pick);
                 }
                 root.dragMoved(m.x, m.y);
             }
@@ -620,7 +722,7 @@ Item {
         visible: root.sel !== null && !mouse.dragging
         width: root.cardWidth
         x: root.sel ? Math.round(side > 0 ? root.sel.tx - root.wallX + 3 + Logic.COVER + 14 + 76 * root.pinO : root.sel.tx - root.wallX - Logic.COVER - 14 - 76 * root.pinO - width) : 0
-        y: root.sel ? Math.round(Math.max(48, Math.min(root.sel.ty - root.wallY - Logic.COVER - 16, root.visibleBottom - height - 8))) : 0
+        y: root.sel ? Math.round(Math.max(8, Math.min(root.sel.ty - root.wallY - Logic.COVER - 16, root.height - height - 8))) : 0
 
         onLoad: group => root.loadRequested(root.sel.id, group)
         onPicked: i => {
@@ -634,9 +736,9 @@ Item {
         color: Style.line
         height: 3
         visible: root.maxPanX > 0
-        width: 220
-        x: root.width - width - 18
-        y: 44
+        width: 180
+        x: root.width - width - 14
+        y: 8
 
         Rectangle {
             color: Style.dim
@@ -657,30 +759,30 @@ Item {
     }
     Column {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: -root.height / 2 + root.visibleBottom / 2
         spacing: 10
-        visible: root.records.length === 0
+        visible: root.recordCount === 0
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             color: Style.fg
-            font.family: Style.sans
+            font.family: Style.sansSemi
             font.pixelSize: 20
-            font.weight: Font.DemiBold
-            text: "Das Regal ist noch leer"
+            text: root.filterText ? "Nichts gefunden" : "Das Regal ist noch leer"
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             color: Style.dim
             font.family: Style.sans
             font.pixelSize: 13
-            text: "In den Einstellungen einen Musikordner hinzufügen, dann füllt es sich."
+            text: root.filterText ? "Keine Platte passt zu „" + root.filterText + "“." : "In den Einstellungen einen Musikordner hinzufügen, dann füllt es sich."
         }
         TextButton {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "Einstellungen"
+            visible: !root.filterText
 
             onClicked: root.preferencesRequested()
         }
     }
 }
+// [/AI-generated]
